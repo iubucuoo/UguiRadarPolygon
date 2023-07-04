@@ -28,6 +28,61 @@ namespace UnityEngine.UI.Extensions
         List<RectTransform> points;
 
         private bool Isuplins = false;
+        bool IsUpUi = false;
+        #region lines
+        //更新位置
+        void UpDateLinesPos()
+        {
+            if (Isuplins == false)
+                return;
+            for (int i = 0; i < sides; i++)
+                SetLinePos(i);
+            Isuplins = false;
+        }
+        void SetLinePos(int i)
+        {
+            if (lines != null && points != null && lines.Count >= i + 1 && points.Count >= i + 1)
+            {
+                int p2 = i + 1;
+                if (points.Count == p2)
+                {
+                    p2 = 0;
+                }
+                SetLine(lines[i], points[i], points[p2]);
+            }
+        }
+        void SetLine(Image arrow, RectTransform pb, RectTransform pa)
+        {
+            if (arrow == null)
+                return;
+            arrow.transform.position = pa.position;
+            arrow.transform.localRotation = Quaternion.AngleAxis(-GetAngle(pb, pa), Vector3.forward);
+
+            var distance = Vector2.Distance(pb.anchoredPosition, pa.anchoredPosition);
+            var newsizedelta = new Vector2(arrow.rectTransform.sizeDelta.x, distance);
+            if (newsizedelta != arrow.rectTransform.sizeDelta)
+                arrow.rectTransform.sizeDelta = newsizedelta;
+        }
+        float GetAngle(RectTransform pb, RectTransform pa)
+        {
+            var dir = pb.position - pa.position;
+            var dirV2 = new Vector2(dir.x, dir.y);
+            var angle = Vector2.SignedAngle(dirV2, Vector2.down);
+            return angle;
+        }
+
+        public void InitLines()
+        {
+            ClearLines();
+            if (lineSprite == null)
+            {
+                Debug.LogWarning("lineSprite 为空");
+                return;
+            }
+            lines = new List<Image>();
+            SpawnLines();
+            SetVerticesDirty();
+        }
         void ClearLines()
         {
             if (lines == null)
@@ -37,14 +92,6 @@ namespace UnityEngine.UI.Extensions
                 if (line != null)
                     DestroyImmediate(line.gameObject);
             }
-        }
-
-        public void InitLines()
-        {
-            ClearLines();
-            lines = new List<Image>();
-            SpawnLines();
-            SetVerticesDirty();
         }
         void SpawnLines()
         {
@@ -62,6 +109,29 @@ namespace UnityEngine.UI.Extensions
                 lines.Add(_Image);
             }
         }
+        #endregion
+
+        #region points
+        void SetPointsPos(int i, Vector2 pos)
+        {
+            if (points != null && points.Count >= i + 1)
+            {
+                points[i].anchoredPosition = pos;
+            }
+        }
+
+        public void InitPoints()
+        {
+            ClearPoints();
+            if (pointSprite == null)
+            {
+                Debug.LogWarning("pointSprite 为空");
+                return;
+            }
+            points = new List<RectTransform>();
+            SpawnPoints();
+            SetVerticesDirty();
+        }
         void ClearPoints()
         {
             if (points == null)
@@ -71,14 +141,6 @@ namespace UnityEngine.UI.Extensions
                 if (point != null)
                     DestroyImmediate(point.gameObject);
             }
-        }
-
-        public void InitPoints()
-        {
-            ClearPoints();
-            points = new List<RectTransform>();
-            SpawnPoints();
-            SetVerticesDirty();
         }
         void SpawnPoints()
         {
@@ -95,6 +157,7 @@ namespace UnityEngine.UI.Extensions
                 points.Add(rect);
             }
         }
+        #endregion
         public override Texture mainTexture
         {
             get
@@ -113,8 +176,35 @@ namespace UnityEngine.UI.Extensions
                 if (m_Texture == value) return;
                 m_Texture = value;
                 SetVerticesDirty();
-                SetMaterialDirty();
+                //SetMaterialDirty();
             }
+        }
+        //只更改顶点的值  默认传入数量少一个方便外部传参
+        public void DrawVertices(float[] _VerticesDistances)
+        {
+            int _len = _VerticesDistances.Length;
+            int len = VerticesDistances.Length;
+            if (len == _len + 1)
+            {
+                VerticesDistances = _VerticesDistances;//长度相同直接赋值
+            }
+            else if (len == _len + 1)
+            {
+                //长度比预制少1位 方便外部传参
+                for (int i = 0; i < len - 1; i++)
+                {
+                    if (i > _len - 1)
+                        VerticesDistances[i] = _VerticesDistances[0];
+                    else
+                        VerticesDistances[i] = _VerticesDistances[i];
+                }
+            }
+            else
+            {
+                Debug.LogError("error  传入顶点数量与预制不符");
+                VerticesDistances = _VerticesDistances;
+            }
+            IsUpUi = true;
         }
         public void DrawPolygon(int _sides)
         {
@@ -122,21 +212,23 @@ namespace UnityEngine.UI.Extensions
             VerticesDistances = new float[_sides + 1];
             for (int i = 0; i < _sides; i++) VerticesDistances[i] = 1; ;
             rotation = 0;
-            SetVerticesDirty();
         }
         public void DrawPolygon(int _sides, float[] _VerticesDistances)
         {
             sides = _sides;
             VerticesDistances = _VerticesDistances;
             rotation = 0;
-            SetVerticesDirty();
         }
         public void DrawPolygon(int _sides, float[] _VerticesDistances, float _rotation)
         {
             sides = _sides;
             VerticesDistances = _VerticesDistances;
             rotation = _rotation;
-            SetVerticesDirty();
+        }
+        public override void SetVerticesDirty()
+        {
+            base.SetVerticesDirty();
+            SetMaterialDirty();
         }
         void Update()
         {
@@ -147,6 +239,11 @@ namespace UnityEngine.UI.Extensions
                 size = rectTransform.rect.width;
             thickness = Mathf.Clamp(thickness, 0, size / 2);
             UpDateLinesPos();
+            if (IsUpUi)
+            {
+                SetVerticesDirty();
+                IsUpUi = false;
+            }
         }
         protected UIVertex[] SetVbo(Vector2[] vertices, Vector2[] uvs)
         {
@@ -212,53 +309,6 @@ namespace UnityEngine.UI.Extensions
                 SetPointsPos(i, pos1);//更新顶点位置
             }
             Isuplins = true;//同时更新连线长度
-        }
-        void SetPointsPos(int i,Vector2 pos)
-        {
-            if (points!=null && points.Count>= i+1)
-            {
-                points[i].anchoredPosition = pos;
-            }
-        }
-        //更新位置
-        void UpDateLinesPos()
-        {
-            if (Isuplins == false)
-                return;
-            for (int i = 0; i < sides; i++)
-                SetLinePos(i);
-            Isuplins = false;
-        }
-        void SetLinePos(int i)
-        {
-            if (lines!=null && points != null && lines.Count>=i+1  && points.Count >= i + 1)
-            {
-                int p2 = i + 1;
-                if (points.Count==p2)
-                {
-                    p2 = 0;
-                }
-                SetLine(lines[i], points[i], points[p2]);
-            }
-        }
-        void SetLine(Image arrow,RectTransform pb, RectTransform pa)
-        {
-            if (arrow == null)
-                return;
-            arrow.transform.position = pa.position;
-            arrow.transform.localRotation = Quaternion.AngleAxis(-GetAngle(pb, pa), Vector3.forward);
-
-            var distance = Vector2.Distance(pb.anchoredPosition, pa.anchoredPosition);
-            var newsizedelta = new Vector2(arrow.rectTransform.sizeDelta.x, distance);
-            if (newsizedelta != arrow.rectTransform.sizeDelta)
-                arrow.rectTransform.sizeDelta = newsizedelta;
-        }
-        float GetAngle(RectTransform pb, RectTransform pa)
-        {
-            var dir = pb.position - pa.position;
-            var dirV2 = new Vector2(dir.x, dir.y);
-            var angle = Vector2.SignedAngle(dirV2, Vector2.down);
-            return angle;
         }
     }
 }
