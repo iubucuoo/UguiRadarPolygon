@@ -184,7 +184,7 @@ namespace UnityEngine.UI.Extensions
         {
             int _len = _VerticesDistances.Length;
             int len = VerticesDistances.Length;
-            if (len == _len + 1)
+            if (len == _len)
             {
                 VerticesDistances = _VerticesDistances;//长度相同直接赋值
             }
